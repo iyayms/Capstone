@@ -106,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td>
             ${escapeHtml(it.type)}
             ${it.note ? `<div class="text-xs text-gray-400 mt-0.5">${escapeHtml(it.note)}</div>` : ''}
+            ${it.startTime && it.endTime ? `<div class="intention-timeline">🕐 ${escapeHtml(it.startTime)} – ${escapeHtml(it.endTime)}</div>` : ''}
           </td>
           <td>${massDateLabel}</td>
           <td class="offering-amount">${formatPeso(it.offering)}</td>
@@ -142,23 +143,87 @@ document.addEventListener('DOMContentLoaded', () => {
   ------------------------------------------ */
   const addModal = document.getElementById('add-modal');
 
-  document.getElementById('btn-add-intention').addEventListener('click', () => openModal(addModal));
+  const addNameInput  = document.getElementById('add-name-input');
+  const addAddNameBtn  = document.getElementById('add-add-name');
+  const addNameChipsBox = document.getElementById('add-name-chips');
+  const addNameCountLabel = document.getElementById('add-name-count');
+
+  let addIntentionNames = [];
+
+  function renderAddNameChips() {
+    addNameChipsBox.innerHTML = addIntentionNames.map((n, i) => `
+      <span class="name-chip" data-index="${i}">
+        ${escapeHtml(n)}
+        <button type="button" class="name-chip-remove" data-index="${i}" aria-label="Remove ${escapeHtml(n)}">×</button>
+      </span>
+    `).join('');
+
+    if (addIntentionNames.length > 0) {
+      addNameCountLabel.textContent = addIntentionNames.length;
+      addNameCountLabel.classList.remove('hidden');
+    } else {
+      addNameCountLabel.classList.add('hidden');
+    }
+  }
+
+  function addIntentionName() {
+    const val = addNameInput.value.trim();
+    if (!val) return;
+    addIntentionNames.push(val);
+    addNameInput.value = '';
+    addNameInput.classList.remove('border-red-400');
+    renderAddNameChips();
+    addNameInput.focus();
+  }
+
+  addAddNameBtn.addEventListener('click', addIntentionName);
+
+  addNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addIntentionName();
+    }
+  });
+
+  addNameChipsBox.addEventListener('click', (e) => {
+    const btn = e.target.closest('.name-chip-remove');
+    if (!btn) return;
+    addIntentionNames.splice(parseInt(btn.dataset.index, 10), 1);
+    renderAddNameChips();
+  });
+
+  document.getElementById('btn-add-intention').addEventListener('click', () => {
+    addIntentionNames = [];
+    renderAddNameChips();
+    openModal(addModal);
+  });
 
   document.getElementById('add-submit').addEventListener('click', () => {
-    const donor    = document.getElementById('add-donor').value.trim();
-    const type      = document.getElementById('add-type').value;
-    const note       = document.getElementById('add-note').value.trim();
-    const offering    = parseInt(document.getElementById('add-offering').value, 10);
+    // If a name was typed but not added yet, add it for them.
+    if (addNameInput.value.trim()) addIntentionName();
 
-    if (!donor || !type || !offering) {
-      showToast('Please fill in donor name, intention type, and offering amount.', true);
+    const donor     = document.getElementById('add-donor').value.trim();
+    const type       = document.getElementById('add-type').value;
+    const startTime24 = document.getElementById('add-start-time').value;
+    const endTime24    = document.getElementById('add-end-time').value;
+    const offering     = parseInt(document.getElementById('add-offering').value, 10);
+
+    if (!donor || !type || addIntentionNames.length === 0 || !offering) {
+      showToast('Please fill in donor name, intention type, at least one name, and offering amount.', true);
       return;
     }
+
+    const names = addIntentionNames.slice();
+    const startTime = startTime24 ? formatTime12(startTime24) : null;
+    const endTime     = endTime24 ? formatTime12(endTime24) : null;
 
     intentions.unshift({
       donor,
       type,
-      note,
+      names,
+      note: names.join(', '),
+      startTime,
+      endTime,
       submittedDate: TODAY_ISO,
       massDate: null,
       massTime: null,
@@ -174,8 +239,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Reset form
     document.getElementById('add-donor').value = '';
     document.getElementById('add-type').value = '';
-    document.getElementById('add-note').value = '';
+    document.getElementById('add-start-time').value = '';
+    document.getElementById('add-end-time').value = '';
     document.getElementById('add-offering').value = '';
+    addIntentionNames = [];
+    renderAddNameChips();
   });
 
 
