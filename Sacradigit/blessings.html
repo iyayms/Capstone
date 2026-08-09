@@ -248,6 +248,29 @@
           </div>
         </div>
 
+        <!-- Search + Filter -->
+        <div class="filter-bar">
+          <div class="search-wrap">
+            <svg class="w-4 h-4 search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/></svg>
+            <input id="search-input" type="text" placeholder="Search by requester or blessing type" class="search-input" />
+          </div>
+
+          <div class="relative shrink-0">
+            <select id="type-filter" class="filter-select">
+              <option value="">Type Filter</option>
+              <option value="House Blessing">House Blessing</option>
+              <option value="Business Dedication">Business Dedication</option>
+              <option value="Vehicle Blessing">Vehicle Blessing</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <button id="btn-clear-filters" type="button" class="btn-filter">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 4h18M6 4v16a1 1 0 001 1h10a1 1 0 001-1V4M10 10v6m4-6v6"/></svg>
+            Clear
+          </button>
+        </div>
+
         <!-- Upcoming Blessings + New Blessing Requests -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
@@ -358,6 +381,24 @@
       <div class="modal-footer">
         <button type="button" class="btn-secondary" data-close-modal>Cancel</button>
         <button type="button" id="decline-submit" class="btn-danger">Decline Request</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== BLESSING DETAILS MODAL ========== -->
+  <div id="details-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Blessing Details</h3>
+        <button class="modal-close" data-close-modal aria-label="Close">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="details-body">
+        <!-- Injected by blessings.js -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" data-close-modal>Close</button>
       </div>
     </div>
   </div>
