@@ -92,6 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       return `
         <div class="announcement-card ${a.published ? '' : 'unpublished'}">
+          ${a.image ? `<img class="announcement-image" src="${a.image}" alt="${escapeHtml(a.title)}" />` : ''}
           <div class="announcement-top">
             <p class="announcement-title">${escapeHtml(a.title)}</p>
           </div>
@@ -149,7 +150,70 @@ document.addEventListener('DOMContentLoaded', () => {
   const bodyInput            = document.getElementById('ann-body');
   const audienceSelect        = document.getElementById('ann-audience');
 
+  const dropzone            = document.getElementById('ann-dropzone');
+  const imageInput            = document.getElementById('ann-image-input');
+  const imagePreviewWrap        = document.getElementById('ann-image-preview-wrap');
+  const imagePreview              = document.getElementById('ann-image-preview');
+  const imageRemoveBtn              = document.getElementById('ann-image-remove');
+
   let editTargetIndex = null;
+  let currentImageDataUrl = null; // base64 data URL of the selected/existing image, or null
+
+  function setImagePreview(dataUrl) {
+    currentImageDataUrl = dataUrl;
+    if (dataUrl) {
+      imagePreview.src = dataUrl;
+      imagePreviewWrap.classList.remove('hidden');
+      dropzone.classList.add('hidden');
+    } else {
+      imagePreview.src = '';
+      imagePreviewWrap.classList.add('hidden');
+      dropzone.classList.remove('hidden');
+    }
+  }
+
+  function handleImageFile(file) {
+    if (!file) return;
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      showToast('Please choose a JPG or PNG image.', true);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image must be 5 MB or smaller.', true);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setImagePreview(reader.result);
+    reader.readAsDataURL(file);
+  }
+
+  imageInput.addEventListener('change', () => {
+    if (imageInput.files.length > 0) handleImageFile(imageInput.files[0]);
+  });
+
+  ['dragover', 'dragenter'].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+  });
+
+  ['dragleave', 'dragend'].forEach(evt => {
+    dropzone.addEventListener(evt, () => dropzone.classList.remove('dragover'));
+  });
+
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) {
+      handleImageFile(e.dataTransfer.files[0]);
+    }
+  });
+
+  imageRemoveBtn.addEventListener('click', () => {
+    imageInput.value = '';
+    setImagePreview(null);
+  });
 
   document.getElementById('btn-new-announcement').addEventListener('click', () => {
     editTargetIndex = null;
@@ -158,6 +222,8 @@ document.addEventListener('DOMContentLoaded', () => {
     titleInput.value = '';
     bodyInput.value = '';
     audienceSelect.value = 'All Parishioners';
+    imageInput.value = '';
+    setImagePreview(null);
     openModal(modal);
   });
 
@@ -169,6 +235,8 @@ document.addEventListener('DOMContentLoaded', () => {
     titleInput.value = a.title;
     bodyInput.value = a.body;
     audienceSelect.value = a.audience;
+    imageInput.value = '';
+    setImagePreview(a.image || null);
     openModal(modal);
   }
 
@@ -187,6 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
       announcements[editTargetIndex].title = title;
       announcements[editTargetIndex].body = body;
       announcements[editTargetIndex].audience = audience;
+      announcements[editTargetIndex].image = currentImageDataUrl;
       showToast(`"${title}" updated.`);
     } else {
       // Creating + publishing a new one
@@ -194,6 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
         title,
         body,
         audience,
+        image: currentImageDataUrl,
         date: TODAY_ISO,
         published: true,
       });
