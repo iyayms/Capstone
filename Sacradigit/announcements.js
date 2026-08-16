@@ -90,9 +90,24 @@ document.addEventListener('DOMContentLoaded', () => {
         ? `<button type="button" class="ann-unpublish" data-index="${realIndex}">Unpublish</button>`
         : `<button type="button" class="ann-republish" data-index="${realIndex}">Republish</button>`;
 
+      const media = a.media || [];
+      const firstMedia = media[0];
+      let mediaHtml = '';
+      if (firstMedia) {
+        const thumb = firstMedia.type === 'video'
+          ? `<video class="announcement-image" src="${firstMedia.dataUrl}" muted></video><span class="announcement-video-badge"><svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>`
+          : `<img class="announcement-image" src="${firstMedia.dataUrl}" alt="${escapeHtml(a.title)}" />`;
+        mediaHtml = `
+          <div class="announcement-image-wrap">
+            ${thumb}
+            ${media.length > 1 ? `<span class="announcement-media-count">+${media.length - 1} more</span>` : ''}
+          </div>
+        `;
+      }
+
       return `
         <div class="announcement-card ${a.published ? '' : 'unpublished'}">
-          ${a.image ? `<img class="announcement-image" src="${a.image}" alt="${escapeHtml(a.title)}" />` : ''}
+          ${mediaHtml}
           <div class="announcement-top">
             <p class="announcement-title">${escapeHtml(a.title)}</p>
           </div>
@@ -151,44 +166,50 @@ document.addEventListener('DOMContentLoaded', () => {
   const audienceSelect        = document.getElementById('ann-audience');
 
   const dropzone            = document.getElementById('ann-dropzone');
-  const imageInput            = document.getElementById('ann-image-input');
-  const imagePreviewWrap        = document.getElementById('ann-image-preview-wrap');
-  const imagePreview              = document.getElementById('ann-image-preview');
-  const imageRemoveBtn              = document.getElementById('ann-image-remove');
+  const mediaInput            = document.getElementById('ann-media-input');
+  const mediaGrid                = document.getElementById('ann-media-grid');
 
   let editTargetIndex = null;
-  let currentImageDataUrl = null; // base64 data URL of the selected/existing image, or null
+  let currentMedia = []; // array of { type: 'image'|'video', dataUrl, name }
 
-  function setImagePreview(dataUrl) {
-    currentImageDataUrl = dataUrl;
-    if (dataUrl) {
-      imagePreview.src = dataUrl;
-      imagePreviewWrap.classList.remove('hidden');
-      dropzone.classList.add('hidden');
-    } else {
-      imagePreview.src = '';
-      imagePreviewWrap.classList.add('hidden');
-      dropzone.classList.remove('hidden');
-    }
+  function renderMediaGrid() {
+    mediaGrid.innerHTML = currentMedia.map((m, i) => `
+      <div class="ann-media-item" data-index="${i}">
+        ${m.type === 'video'
+          ? `<video src="${m.dataUrl}" muted></video><span class="media-video-badge"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>`
+          : `<img src="${m.dataUrl}" alt="${escapeHtml(m.name)}" />`}
+        <button type="button" class="ann-media-remove" data-index="${i}" aria-label="Remove ${escapeHtml(m.name)}">×</button>
+      </div>
+    `).join('');
   }
 
-  function handleImageFile(file) {
-    if (!file) return;
-    if (!['image/png', 'image/jpeg'].includes(file.type)) {
-      showToast('Please choose a JPG or PNG image.', true);
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      showToast('Image must be 5 MB or smaller.', true);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setImagePreview(reader.result);
-    reader.readAsDataURL(file);
+  function handleMediaFiles(files) {
+    Array.from(files).forEach(file => {
+      const isImage = ['image/png', 'image/jpeg'].includes(file.type);
+      const isVideo = ['video/mp4', 'video/webm'].includes(file.type);
+
+      if (!isImage && !isVideo) {
+        showToast(`"${file.name}" isn't a supported image or video type.`, true);
+        return;
+      }
+      const maxSize = isVideo ? 20 * 1024 * 1024 : 5 * 1024 * 1024;
+      if (file.size > maxSize) {
+        showToast(`"${file.name}" is too large (max ${isVideo ? '20 MB for videos' : '5 MB for images'}).`, true);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        currentMedia.push({ type: isVideo ? 'video' : 'image', dataUrl: reader.result, name: file.name });
+        renderMediaGrid();
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
-  imageInput.addEventListener('change', () => {
-    if (imageInput.files.length > 0) handleImageFile(imageInput.files[0]);
+  mediaInput.addEventListener('change', () => {
+    if (mediaInput.files.length > 0) handleMediaFiles(mediaInput.files);
+    mediaInput.value = '';
   });
 
   ['dragover', 'dragenter'].forEach(evt => {
@@ -206,13 +227,15 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     dropzone.classList.remove('dragover');
     if (e.dataTransfer.files.length > 0) {
-      handleImageFile(e.dataTransfer.files[0]);
+      handleMediaFiles(e.dataTransfer.files);
     }
   });
 
-  imageRemoveBtn.addEventListener('click', () => {
-    imageInput.value = '';
-    setImagePreview(null);
+  mediaGrid.addEventListener('click', (e) => {
+    const btn = e.target.closest('.ann-media-remove');
+    if (!btn) return;
+    currentMedia.splice(parseInt(btn.dataset.index, 10), 1);
+    renderMediaGrid();
   });
 
   document.getElementById('btn-new-announcement').addEventListener('click', () => {
@@ -222,8 +245,8 @@ document.addEventListener('DOMContentLoaded', () => {
     titleInput.value = '';
     bodyInput.value = '';
     audienceSelect.value = 'All Parishioners';
-    imageInput.value = '';
-    setImagePreview(null);
+    currentMedia = [];
+    renderMediaGrid();
     openModal(modal);
   });
 
@@ -235,8 +258,8 @@ document.addEventListener('DOMContentLoaded', () => {
     titleInput.value = a.title;
     bodyInput.value = a.body;
     audienceSelect.value = a.audience;
-    imageInput.value = '';
-    setImagePreview(a.image || null);
+    currentMedia = a.media ? a.media.slice() : [];
+    renderMediaGrid();
     openModal(modal);
   }
 
@@ -250,12 +273,14 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const media = currentMedia.slice();
+
     if (editTargetIndex !== null) {
       // Editing an existing announcement
       announcements[editTargetIndex].title = title;
       announcements[editTargetIndex].body = body;
       announcements[editTargetIndex].audience = audience;
-      announcements[editTargetIndex].image = currentImageDataUrl;
+      announcements[editTargetIndex].media = media;
       showToast(`"${title}" updated.`);
     } else {
       // Creating + publishing a new one
@@ -263,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
         title,
         body,
         audience,
-        image: currentImageDataUrl,
+        media,
         date: TODAY_ISO,
         published: true,
       });
