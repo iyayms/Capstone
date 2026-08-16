@@ -179,6 +179,13 @@
   z-index: 100;
 }
 
+/* Guarantees a hidden modal actually disappears regardless of the load
+   order of the Tailwind CDN stylesheet vs. this one (two-class selector
+   always outranks Tailwind's single-class .hidden either way). */
+.modal-overlay.hidden {
+  display: none;
+}
+
 .modal-card {
   background: #ffffff;
   border-radius: 1rem;

@@ -10,24 +10,16 @@ document.addEventListener('DOMContentLoaded', () => {
      Firestore. dateRequested uses ISO format.
   ------------------------------------------ */
   let requests = [
-    { requester: 'Santos, Maria T.',    type: 'Baptismal',    dateRequested: '2026-06-18', purpose: 'School enrollment',       status: 'Pending'  },
-    { requester: 'Cruz, Jose R.',        type: 'Confirmation', dateRequested: '2026-06-18', purpose: 'Sponsor requirement',     status: 'Pending'  },
-    { requester: 'Reyes, Ana L.',        type: 'Marriage',     dateRequested: '2026-06-17', purpose: 'Marriage application',    status: 'Pending'  },
-    { requester: 'Garcia, Pedro M.',     type: 'Death',        dateRequested: '2026-06-17', purpose: 'Estate settlement',       status: 'Pending'  },
-    { requester: 'Villanueva, Rosa S.',  type: 'Marriage',     dateRequested: '2026-06-12', purpose: 'Visa application',        status: 'Approved' },
-    { requester: 'Bautista, Carlo M.',   type: 'Confirmation', dateRequested: '2026-06-08', purpose: 'Employment requirement',  status: 'Approved' },
-    { requester: 'Ramos, Teresa A.',     type: 'Death',        dateRequested: '2026-06-02', purpose: 'Insurance claim',         status: 'Approved' },
+    { requester: 'Santos, Maria T.',    type: 'Baptismal',    dateRequested: '2026-06-18', purpose: 'School enrollment',       status: 'Pending',  certificateFile: null },
+    { requester: 'Cruz, Jose R.',        type: 'Confirmation', dateRequested: '2026-06-18', purpose: 'Sponsor requirement',     status: 'Pending',  certificateFile: null },
+    { requester: 'Reyes, Ana L.',        type: 'Marriage',     dateRequested: '2026-06-17', purpose: 'Marriage application',    status: 'Pending',  certificateFile: null },
+    { requester: 'Garcia, Pedro M.',     type: 'Death',        dateRequested: '2026-06-17', purpose: 'Estate settlement',       status: 'Pending',  certificateFile: null },
+    { requester: 'Villanueva, Rosa S.',  type: 'Marriage',     dateRequested: '2026-06-12', purpose: 'Visa application',        status: 'Approved', certificateFile: 'villanueva-marriage-cert.pdf' },
+    { requester: 'Bautista, Carlo M.',   type: 'Confirmation', dateRequested: '2026-06-08', purpose: 'Employment requirement',  status: 'Approved', certificateFile: 'bautista-confirmation-cert.pdf' },
+    { requester: 'Ramos, Teresa A.',     type: 'Death',        dateRequested: '2026-06-02', purpose: 'Insurance claim',         status: 'Approved', certificateFile: 'ramos-death-cert.pdf' },
     { requester: 'Fernandez, Luis G.',   type: 'Baptismal',    dateRequested: '2026-05-28', purpose: 'Confirmation sponsor',    status: 'Rejected', reason: 'Incomplete supporting documents' },
     { requester: 'Mendoza, Carmen P.',   type: 'Marriage',     dateRequested: '2026-05-20', purpose: 'Annulment proceedings',   status: 'Rejected', reason: 'Name mismatch with civil registry' },
   ];
-
-  const tbody         = document.getElementById('requests-tbody');
-  const emptyState     = document.getElementById('empty-state');
-  const resultsCount   = document.getElementById('results-count');
-  const searchInput    = document.getElementById('search-input');
-  const statusFilter    = document.getElementById('status-filter');
-  const typeFilter      = document.getElementById('type-filter');
-  const clearFiltersBtn = document.getElementById('btn-clear-filters');
 
   const badgeClass = {
     'Pending':  'badge-amber',
@@ -36,7 +28,92 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   /* ------------------------------------------
-     1. STAT COUNTERS
+     1. DOM REFERENCES
+     Resolved up front, before any function that
+     might use them can possibly run — avoids
+     "used before initialization" errors when
+     renderRequests() fires on first paint.
+  ------------------------------------------ */
+  const tbody          = document.getElementById('requests-tbody');
+  const emptyState      = document.getElementById('empty-state');
+  const resultsCount    = document.getElementById('results-count');
+  const searchInput     = document.getElementById('search-input');
+  const statusFilter     = document.getElementById('status-filter');
+  const typeFilter        = document.getElementById('type-filter');
+  const clearFiltersBtn    = document.getElementById('btn-clear-filters');
+
+  const uploadModal      = document.getElementById('upload-modal');
+  const newRequestModal   = document.getElementById('new-request-modal');
+  const rejectModal        = document.getElementById('reject-modal');
+  const viewModal            = document.getElementById('view-modal');
+
+  const dropzone         = document.getElementById('upload-dropzone');
+  const fileInput          = document.getElementById('upload-file-input');
+  const uploadFilename       = document.getElementById('upload-filename');
+  const uploadRequestSelect    = document.getElementById('upload-request');
+
+  const rejectTargetName  = document.getElementById('reject-target-name');
+  const rejectReasonInput   = document.getElementById('reject-reason');
+
+  const viewName            = document.getElementById('view-name');
+  const viewStatusBadge      = document.getElementById('view-status-badge');
+  const viewType                = document.getElementById('view-type');
+  const viewDate                  = document.getElementById('view-date');
+  const viewPurpose                 = document.getElementById('view-purpose');
+  const viewCertificateWrap           = document.getElementById('view-certificate-wrap');
+  const viewCertificateName             = document.getElementById('view-certificate-name');
+  const viewReasonWrap                    = document.getElementById('view-reason-wrap');
+  const viewReason                          = document.getElementById('view-reason');
+
+  const toast = document.getElementById('toast');
+
+  let rejectTargetIndex = null;
+  let toastTimer = null;
+
+  /* ------------------------------------------
+     2. HELPERS
+  ------------------------------------------ */
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function formatDate(iso) {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function openModal(modal) {
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal(modal) {
+    if (modal.classList.contains('hidden')) return;
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  function closeAllModals() {
+    [uploadModal, newRequestModal, rejectModal, viewModal].forEach(closeModal);
+  }
+
+  function showToast(message, isError = false) {
+    clearTimeout(toastTimer);
+    toast.textContent = message;
+    toast.style.backgroundColor = isError ? '#b91c1c' : '#1e2a4a';
+    toast.classList.remove('hidden');
+    requestAnimationFrame(() => toast.classList.add('show'));
+
+    toastTimer = setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.classList.add('hidden'), 200);
+    }, 3000);
+  }
+
+  /* ------------------------------------------
+     3. STAT COUNTERS
   ------------------------------------------ */
   function renderStats() {
     document.getElementById('stat-total').textContent    = requests.length;
@@ -46,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ------------------------------------------
-     2. RENDER TABLE based on current filters
+     4. RENDER TABLE based on current filters
   ------------------------------------------ */
   function renderRequests() {
     const query      = searchInput.value.trim().toLowerCase();
@@ -66,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
       emptyState.classList.remove('hidden');
     } else {
       emptyState.classList.add('hidden');
-      filtered.forEach((r, idx) => {
+      filtered.forEach((r) => {
         const realIndex = requests.indexOf(r);
         const tr = document.createElement('tr');
 
@@ -78,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <button type="button" class="row-reject" data-index="${realIndex}">Reject</button>
             </div>`;
         } else {
-          actionsHtml = `<div class="row-actions"><button type="button" class="row-action" data-index="${realIndex}">View ›</button></div>`;
+          actionsHtml = `<div class="row-actions"><button type="button" class="row-view" data-index="${realIndex}">View ›</button></div>`;
         }
 
         tr.innerHTML = `
@@ -97,34 +174,23 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshUploadDropdown();
   }
 
-  function formatDate(iso) {
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  function refreshUploadDropdown() {
+    const pending = requests
+      .map((r, idx) => ({ ...r, idx }))
+      .filter(r => r.status === 'Pending');
+
+    uploadRequestSelect.innerHTML = '<option value="">Select a pending request</option>' +
+      pending.map(r => `<option value="${r.idx}">${escapeHtml(r.requester)} — ${escapeHtml(r.type)}</option>`).join('');
   }
 
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  // Wire up filter controls
-  searchInput.addEventListener('input', renderRequests);
-  statusFilter.addEventListener('change', renderRequests);
-  typeFilter.addEventListener('change', renderRequests);
-
-  clearFiltersBtn.addEventListener('click', () => {
-    searchInput.value = '';
-    statusFilter.value = '';
-    typeFilter.value = '';
-    renderRequests();
-  });
-
-  // Delegate row button clicks (table is re-rendered, so use delegation)
+  /* ------------------------------------------
+     5. ROW ACTIONS (delegated — table is
+        re-rendered on every filter/update)
+  ------------------------------------------ */
   tbody.addEventListener('click', (e) => {
     const approveBtn = e.target.closest('.row-approve');
     const rejectBtn  = e.target.closest('.row-reject');
-    const viewBtn    = e.target.closest('.row-action');
+    const viewBtn    = e.target.closest('.row-view');
 
     if (approveBtn) {
       const idx = parseInt(approveBtn.dataset.index, 10);
@@ -141,80 +207,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (viewBtn) {
       const idx = parseInt(viewBtn.dataset.index, 10);
-      const r = requests[idx];
-      const extra = r.status === 'Rejected' && r.reason ? ` Reason: ${r.reason}` : '';
-      showToast(`${r.requester} — ${r.status}.${extra}`);
+      openViewModal(idx);
     }
   });
 
-  renderStats();
-  renderRequests(); // initial paint
-
-
   /* ------------------------------------------
-     3. MODALS — Upload, New Request, Reject
+     6. FILTER WIRING
   ------------------------------------------ */
-  const uploadModal      = document.getElementById('upload-modal');
-  const newRequestModal  = document.getElementById('new-request-modal');
-  const rejectModal       = document.getElementById('reject-modal');
+  searchInput.addEventListener('input', renderRequests);
+  statusFilter.addEventListener('change', renderRequests);
+  typeFilter.addEventListener('change', renderRequests);
 
-  document.getElementById('btn-upload').addEventListener('click', () => openModal(uploadModal));
-  document.getElementById('btn-new-request').addEventListener('click', () => openModal(newRequestModal));
-
-  document.querySelectorAll('[data-close-modal]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      closeModal(uploadModal);
-      closeModal(newRequestModal);
-      closeModal(rejectModal);
-    });
+  clearFiltersBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    statusFilter.value = '';
+    typeFilter.value = '';
+    renderRequests();
   });
 
-  // Click outside modal card to close
-  [uploadModal, newRequestModal, rejectModal].forEach(modal => {
+  /* ------------------------------------------
+     7. MODAL OPEN BUTTONS
+  ------------------------------------------ */
+  document.getElementById('btn-upload').addEventListener('click', () => {
+    fileInput.value = '';
+    uploadFilename.classList.add('hidden');
+    uploadRequestSelect.value = '';
+    openModal(uploadModal);
+  });
+
+  document.getElementById('btn-new-request').addEventListener('click', () => {
+    ['new-requester', 'new-purpose', 'new-notes'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('new-type').value = '';
+    document.getElementById('new-date').value = '';
+    openModal(newRequestModal);
+  });
+
+  /* ------------------------------------------
+     8. MODAL CLOSE WIRING
+  ------------------------------------------ */
+  document.querySelectorAll('[data-close-modal]').forEach(btn => {
+    btn.addEventListener('click', closeAllModals);
+  });
+
+  [uploadModal, newRequestModal, rejectModal, viewModal].forEach(modal => {
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeModal(modal);
     });
   });
 
-  // Escape key closes any open modal
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      closeModal(uploadModal);
-      closeModal(newRequestModal);
-      closeModal(rejectModal);
-    }
+    if (e.key === 'Escape') closeAllModals();
   });
 
-  function openModal(modal) {
-    modal.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-  }
-
-  function closeModal(modal) {
-    if (modal.classList.contains('hidden')) return;
-    modal.classList.add('hidden');
-    document.body.style.overflow = '';
-  }
-
-
   /* ------------------------------------------
-     4. UPLOAD MODAL — link a signed certificate
+     9. UPLOAD MODAL — link a signed certificate
         to a pending request, marks it Approved
   ------------------------------------------ */
-  const dropzone      = document.getElementById('upload-dropzone');
-  const fileInput      = document.getElementById('upload-file-input');
-  const uploadFilename = document.getElementById('upload-filename');
-  const uploadRequestSelect = document.getElementById('upload-request');
-
-  function refreshUploadDropdown() {
-    const pending = requests
-      .map((r, idx) => ({ ...r, idx }))
-      .filter(r => r.status === 'Pending');
-
-    uploadRequestSelect.innerHTML = '<option value="">Select a pending request</option>' +
-      pending.map(r => `<option value="${r.idx}">${escapeHtml(r.requester)} — ${escapeHtml(r.type)}</option>`).join('');
-  }
-
   fileInput.addEventListener('change', () => {
     if (fileInput.files.length > 0) {
       uploadFilename.textContent = `Selected: ${fileInput.files[0].name}`;
@@ -257,6 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const idx = parseInt(linkedIdx, 10);
     requests[idx].status = 'Approved';
+    requests[idx].certificateFile = fileInput.files[0].name;
 
     renderStats();
     renderRequests();
@@ -269,10 +320,9 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadRequestSelect.value = '';
   });
 
-
   /* ------------------------------------------
-     5. NEW REQUEST MODAL — manual entry
-        (walk-in / phone request)
+     10. NEW REQUEST MODAL — manual entry
+         (walk-in / phone request)
   ------------------------------------------ */
   document.getElementById('new-request-submit').addEventListener('click', () => {
     const requester = document.getElementById('new-requester').value.trim();
@@ -291,6 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
       dateRequested: date,
       purpose: purpose || 'Not specified',
       status: 'Pending',
+      certificateFile: null,
     });
 
     renderStats();
@@ -306,15 +357,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('new-date').value = '';
   });
 
-
   /* ------------------------------------------
-     6. REJECT MODAL — capture a reason, then
-        mark the request Rejected
+     11. REJECT MODAL — capture a reason, then
+         mark the request Rejected
   ------------------------------------------ */
-  let rejectTargetIndex = null;
-  const rejectTargetName = document.getElementById('reject-target-name');
-  const rejectReasonInput = document.getElementById('reject-reason');
-
   function openRejectModal(idx) {
     rejectTargetIndex = idx;
     rejectTargetName.textContent = requests[idx].requester;
@@ -342,24 +388,44 @@ document.addEventListener('DOMContentLoaded', () => {
     rejectTargetIndex = null;
   });
 
+  /* ------------------------------------------
+     12. VIEW DETAILS MODAL — read-only summary
+         for Approved / Rejected requests
+  ------------------------------------------ */
+  function openViewModal(idx) {
+    const r = requests[idx];
+
+    viewName.textContent = r.requester;
+    viewType.textContent = r.type;
+    viewDate.textContent = formatDate(r.dateRequested);
+    viewPurpose.textContent = r.purpose;
+
+    viewStatusBadge.textContent = r.status;
+    viewStatusBadge.className = `badge ${badgeClass[r.status] || 'badge-gray'}`;
+
+    if (r.status === 'Approved' && r.certificateFile) {
+      viewCertificateName.textContent = r.certificateFile;
+      viewCertificateWrap.classList.remove('hidden');
+    } else {
+      viewCertificateWrap.classList.add('hidden');
+    }
+
+    if (r.status === 'Rejected' && r.reason) {
+      viewReason.textContent = r.reason;
+      viewReasonWrap.classList.remove('hidden');
+    } else {
+      viewReasonWrap.classList.add('hidden');
+    }
+
+    openModal(viewModal);
+  }
 
   /* ------------------------------------------
-     7. TOAST NOTIFICATIONS
+     13. INITIAL RENDER
+         (runs last, after every element and
+         handler above is safely wired up)
   ------------------------------------------ */
-  const toast = document.getElementById('toast');
-  let toastTimer = null;
-
-  function showToast(message, isError = false) {
-    clearTimeout(toastTimer);
-    toast.textContent = message;
-    toast.style.backgroundColor = isError ? '#b91c1c' : '#1e2a4a';
-    toast.classList.remove('hidden');
-    requestAnimationFrame(() => toast.classList.add('show'));
-
-    toastTimer = setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => toast.classList.add('hidden'), 200);
-    }, 3000);
-  }
+  renderStats();
+  renderRequests();
 
 });
