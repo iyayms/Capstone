@@ -143,6 +143,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function setFieldError(input, message) {
+    input.classList.add('has-error');
+    let msg = input.parentElement.querySelector('.form-error-msg');
+    if (!msg) {
+      msg = document.createElement('p');
+      msg.className = 'form-error-msg';
+      input.insertAdjacentElement('afterend', msg);
+    }
+    msg.textContent = message;
+  }
+
+  function clearFieldError(input) {
+    input.classList.remove('has-error');
+    const msg = input.parentElement.querySelector('.form-error-msg');
+    if (msg) msg.remove();
+  }
+
 
   /* ------------------------------------------
      1. STAT BOXES
@@ -162,6 +179,48 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('stat-pending').textContent  = offers.filter(o => o.status === 'Pending').length;
     document.getElementById('stat-approved').textContent = offers.filter(o => o.status === 'Approved').length;
     document.getElementById('stat-week').textContent     = weekCount;
+
+    updateActiveStatCard();
+  }
+
+  /* ------------------------------------------
+     1b. STAT CARDS AS QUICK FILTERS
+     Total clears the status filter; Pending /
+     Approved set it and jump straight to the
+     matching rows. "This Week" isn't a status,
+     so it stays informational only.
+  ------------------------------------------ */
+  const statCardTotal    = document.getElementById('stat-total').closest('.stat-card');
+  const statCardPending  = document.getElementById('stat-pending').closest('.stat-card');
+  const statCardApproved = document.getElementById('stat-approved').closest('.stat-card');
+
+  const statCardsByStatus = [
+    { card: statCardTotal,    status: '' },
+    { card: statCardPending,  status: 'Pending' },
+    { card: statCardApproved, status: 'Approved' },
+  ];
+
+  statCardsByStatus.forEach(({ card, status }) => {
+    card.classList.add('stat-card-clickable');
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.addEventListener('click', () => {
+      statusFilter.value = status;
+      renderTable();
+    });
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        statusFilter.value = status;
+        renderTable();
+      }
+    });
+  });
+
+  function updateActiveStatCard() {
+    statCardsByStatus.forEach(({ card, status }) => {
+      card.classList.toggle('stat-card-active', statusFilter.value === status);
+    });
   }
 
 
@@ -172,6 +231,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const query     = searchInput.value.trim().toLowerCase();
     const typeVal    = typeFilter.value;
     const statusVal   = statusFilter.value;
+
+    updateActiveStatCard();
 
     const filtered = offers.filter(o => {
       const matchQuery  = !query || o.requester.toLowerCase().includes(query) || o.service.toLowerCase().includes(query);
@@ -202,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         actionsHtml = `
           <div class="row-actions">
-            <button type="button" class="row-action" data-index="${realIdx}">View ›</button>
+            <button type="button" class="row-view" data-index="${realIdx}">View ›</button>
           </div>`;
       }
 
@@ -240,11 +301,11 @@ document.addEventListener('DOMContentLoaded', () => {
   tbody.addEventListener('click', e => {
     const approveBtn = e.target.closest('.row-approve');
     const rejectBtn   = e.target.closest('.row-reject');
-    const viewBtn      = e.target.closest('.row-action');
+    const viewBtn      = e.target.closest('.row-view');
 
     if (approveBtn) openAssignModal(parseInt(approveBtn.dataset.index, 10));
     if (rejectBtn)  openRejectModal(parseInt(rejectBtn.dataset.index, 10));
-    if (viewBtn)    openViewToast(parseInt(viewBtn.dataset.index, 10));
+    if (viewBtn)    openViewModal(parseInt(viewBtn.dataset.index, 10));
   });
 
   renderStats();
@@ -275,6 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
     assignTimeInput.value       = '';
     assignOfficiantInput.value   = '';
     assignNoteInput.value         = '';
+    [assignDateInput, assignTimeInput].forEach(clearFieldError);
 
     // Show request details in the gray box
     assignDetailGrid.innerHTML = Object.entries(o.details).map(([label, value]) => `
@@ -296,6 +358,11 @@ document.addEventListener('DOMContentLoaded', () => {
     openModal(assignModal);
   }
 
+  [assignDateInput, assignTimeInput].forEach(input => {
+    input.addEventListener('input', () => clearFieldError(input));
+    input.addEventListener('change', () => clearFieldError(input));
+  });
+
   document.getElementById('assign-submit').addEventListener('click', () => {
     if (assignTargetIndex === null) return;
 
@@ -304,8 +371,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const officiant   = assignOfficiantInput.value.trim();
     const note         = assignNoteInput.value.trim();
 
-    if (!date || !time24) {
-      showToast('Please enter a confirmed date and time.', true);
+    [assignDateInput, assignTimeInput].forEach(clearFieldError);
+
+    let hasError = false;
+    if (!date)   { setFieldError(assignDateInput, 'Confirmed date is required.'); hasError = true; }
+    if (!time24) { setFieldError(assignTimeInput, 'Confirmed time is required.'); hasError = true; }
+
+    if (hasError) {
+      showToast('Please fix the highlighted fields.', true);
       return;
     }
 
@@ -336,16 +409,21 @@ document.addEventListener('DOMContentLoaded', () => {
     rejectTargetIndex = idx;
     rejectName.textContent = offers[idx].requester;
     rejectReason.value      = '';
+    clearFieldError(rejectReason);
     openModal(rejectModal);
   }
+
+  rejectReason.addEventListener('input', () => clearFieldError(rejectReason));
 
   document.getElementById('reject-submit').addEventListener('click', () => {
     if (rejectTargetIndex === null) return;
     const reason = rejectReason.value.trim();
     if (!reason) {
-      showToast('Please provide a reason for declining.', true);
+      setFieldError(rejectReason, 'Please provide a reason for declining.');
+      showToast('Please fix the highlighted fields.', true);
       return;
     }
+    clearFieldError(rejectReason);
 
     const o = offers[rejectTargetIndex];
     o.status = 'Rejected';
@@ -360,14 +438,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   /* ------------------------------------------
-     5. VIEW (non-pending rows) — toast summary
+     5. VIEW DETAILS MODAL (non-pending rows)
   ------------------------------------------ */
-  function openViewToast(idx) {
+  const viewModal          = document.getElementById('view-modal');
+  const viewName             = document.getElementById('view-name');
+  const viewStatusBadge       = document.getElementById('view-status-badge');
+  const viewDetailGrid          = document.getElementById('view-detail-grid');
+  const viewScheduleWrap           = document.getElementById('view-schedule-wrap');
+  const viewScheduleValue             = document.getElementById('view-schedule-value');
+  const viewNotesWrap                    = document.getElementById('view-notes-wrap');
+  const viewNotes                           = document.getElementById('view-notes');
+
+  function openViewModal(idx) {
     const o = offers[idx];
-    const confirmed = o.confirmedDate
-      ? ` Scheduled: ${fmtDate(o.confirmedDate)} at ${o.confirmedTime}.`
-      : '';
-    showToast(`${o.service} — ${o.requester} (${o.status}).${confirmed}`);
+
+    viewName.textContent = o.requester;
+    viewStatusBadge.textContent = o.status;
+    viewStatusBadge.className = `badge ${badgeClass[o.status] || 'badge-gray'}`;
+
+    viewDetailGrid.innerHTML = Object.entries(o.details).map(([label, value]) => `
+      <div>
+        <p class="so-detail-label">${escapeHtml(label)}</p>
+        <p class="so-detail-value">${escapeHtml(value)}</p>
+      </div>
+    `).join('') + `
+      <div>
+        <p class="so-detail-label">Service Type</p>
+        <p class="so-detail-value">${escapeHtml(o.service)}</p>
+      </div>
+      <div>
+        <p class="so-detail-label">Preferred Date</p>
+        <p class="so-detail-value">${fmtDate(o.preferredDate)}</p>
+      </div>
+      <div>
+        <p class="so-detail-label">Submitted</p>
+        <p class="so-detail-value">${fmtDate(o.submitted)}</p>
+      </div>
+      <div>
+        <p class="so-detail-label">Contact</p>
+        <p class="so-detail-value">${escapeHtml(o.contact)}</p>
+      </div>
+    `;
+
+    if (o.confirmedDate) {
+      viewScheduleValue.textContent = `${fmtDate(o.confirmedDate)} at ${o.confirmedTime}${o.officiant ? ` — ${o.officiant}` : ''}`;
+      viewScheduleWrap.classList.remove('hidden');
+    } else {
+      viewScheduleWrap.classList.add('hidden');
+    }
+
+    if (o.notes) {
+      viewNotes.textContent = o.notes;
+      viewNotesWrap.classList.remove('hidden');
+    } else {
+      viewNotesWrap.classList.add('hidden');
+    }
+
+    openModal(viewModal);
   }
 
 
@@ -378,10 +505,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => {
       closeModal(assignModal);
       closeModal(rejectModal);
+      closeModal(viewModal);
     });
   });
 
-  [assignModal, rejectModal].forEach(m => {
+  [assignModal, rejectModal, viewModal].forEach(m => {
     m.addEventListener('click', e => { if (e.target === m) closeModal(m); });
   });
 
@@ -389,6 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') {
       closeModal(assignModal);
       closeModal(rejectModal);
+      closeModal(viewModal);
     }
   });
 
@@ -419,7 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function showToast(message, isError = false) {
     clearTimeout(toastTimer);
-    toast.textContent = message;
+    toast.querySelector('.toast-message').textContent = message;
     toast.style.backgroundColor = isError ? '#b91c1c' : '#1e2a4a';
     toast.classList.remove('hidden');
     requestAnimationFrame(() => toast.classList.add('show'));

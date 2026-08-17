@@ -84,6 +84,23 @@ document.addEventListener('DOMContentLoaded', () => {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
+  function setFieldError(input, message) {
+    input.classList.add('has-error');
+    let msg = input.parentElement.querySelector('.form-error-msg');
+    if (!msg) {
+      msg = document.createElement('p');
+      msg.className = 'form-error-msg';
+      input.insertAdjacentElement('afterend', msg);
+    }
+    msg.textContent = message;
+  }
+
+  function clearFieldError(input) {
+    input.classList.remove('has-error');
+    const msg = input.parentElement.querySelector('.form-error-msg');
+    if (msg) msg.remove();
+  }
+
   function openModal(modal) {
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -101,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function showToast(message, isError = false) {
     clearTimeout(toastTimer);
-    toast.textContent = message;
+    toast.querySelector('.toast-message').textContent = message;
     toast.style.backgroundColor = isError ? '#b91c1c' : '#1e2a4a';
     toast.classList.remove('hidden');
     requestAnimationFrame(() => toast.classList.add('show'));
@@ -123,12 +140,49 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ------------------------------------------
+     3b. STAT CARDS AS QUICK FILTERS
+     Total clears the status filter (and search
+     query, so the count on screen always matches
+     the card you clicked); Pending / Approved /
+     Rejected jump straight to those rows.
+  ------------------------------------------ */
+  const statCardsByStatus = [
+    { card: document.getElementById('stat-total').closest('.stat-card'),    status: '' },
+    { card: document.getElementById('stat-pending').closest('.stat-card'),  status: 'Pending' },
+    { card: document.getElementById('stat-approved').closest('.stat-card'), status: 'Approved' },
+    { card: document.getElementById('stat-rejected').closest('.stat-card'), status: 'Rejected' },
+  ];
+
+  statCardsByStatus.forEach(({ card, status }) => {
+    card.classList.add('stat-card-clickable');
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    const activate = () => {
+      searchInput.value = '';
+      statusFilter.value = status;
+      renderRequests();
+    };
+    card.addEventListener('click', activate);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+    });
+  });
+
+  function updateActiveStatCard() {
+    statCardsByStatus.forEach(({ card, status }) => {
+      card.classList.toggle('stat-card-active', statusFilter.value === status);
+    });
+  }
+
+  /* ------------------------------------------
      4. RENDER TABLE based on current filters
   ------------------------------------------ */
   function renderRequests() {
     const query      = searchInput.value.trim().toLowerCase();
     const statusVal  = statusFilter.value;
     const typeVal    = typeFilter.value;
+
+    updateActiveStatCard();
 
     const filtered = requests.filter(r => {
       const matchesQuery  = !query || r.requester.toLowerCase().includes(query) || r.type.toLowerCase().includes(query);
@@ -241,6 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('new-type').value = '';
     document.getElementById('new-date').value = '';
+    ['new-requester', 'new-type', 'new-date'].forEach(id => clearFieldError(document.getElementById(id)));
     openModal(newRequestModal);
   });
 
@@ -324,14 +379,31 @@ document.addEventListener('DOMContentLoaded', () => {
      10. NEW REQUEST MODAL — manual entry
          (walk-in / phone request)
   ------------------------------------------ */
+  ['new-requester', 'new-type', 'new-date'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => clearFieldError(el));
+    el.addEventListener('change', () => clearFieldError(el));
+  });
+
   document.getElementById('new-request-submit').addEventListener('click', () => {
-    const requester = document.getElementById('new-requester').value.trim();
-    const type       = document.getElementById('new-type').value;
-    const date       = document.getElementById('new-date').value;
+    const requesterInput = document.getElementById('new-requester');
+    const typeInput       = document.getElementById('new-type');
+    const dateInput        = document.getElementById('new-date');
+
+    const requester = requesterInput.value.trim();
+    const type       = typeInput.value;
+    const date       = dateInput.value;
     const purpose    = document.getElementById('new-purpose').value.trim();
 
-    if (!requester || !type || !date) {
-      showToast('Please fill in requester name, type, and date.', true);
+    [requesterInput, typeInput, dateInput].forEach(clearFieldError);
+
+    let hasError = false;
+    if (!requester) { setFieldError(requesterInput, 'Requester name is required.'); hasError = true; }
+    if (!type)       { setFieldError(typeInput, 'Please select a certificate type.'); hasError = true; }
+    if (!date)         { setFieldError(dateInput, 'Date requested is required.'); hasError = true; }
+
+    if (hasError) {
+      showToast('Please fix the highlighted fields.', true);
       return;
     }
 
@@ -365,15 +437,19 @@ document.addEventListener('DOMContentLoaded', () => {
     rejectTargetIndex = idx;
     rejectTargetName.textContent = requests[idx].requester;
     rejectReasonInput.value = '';
+    clearFieldError(rejectReasonInput);
     openModal(rejectModal);
   }
+
+  rejectReasonInput.addEventListener('input', () => clearFieldError(rejectReasonInput));
 
   document.getElementById('reject-submit').addEventListener('click', () => {
     if (rejectTargetIndex === null) return;
 
     const reason = rejectReasonInput.value.trim();
     if (!reason) {
-      showToast('Please provide a reason for rejection.', true);
+      setFieldError(rejectReasonInput, 'Please provide a reason for rejection.');
+      showToast('Please fix the highlighted fields.', true);
       return;
     }
 
