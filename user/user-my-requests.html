@@ -203,7 +203,27 @@
               </div>
             </div>
             <div class="modal-footer">
+              <button type="button" id="modal-cancel-request" class="btn-danger hidden">Cancel Request</button>
               <button type="button" class="btn-secondary" data-close-modal>Close</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cancel request confirmation modal -->
+        <div id="cancel-request-modal" class="modal-overlay hidden">
+          <div class="modal-card">
+            <div class="modal-header">
+              <h3 class="modal-title">Cancel Request</h3>
+              <button class="modal-close" data-close-modal aria-label="Close">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div class="modal-body">
+              <p class="text-sm text-gray-600">Cancel this <span id="cancel-request-type" class="font-semibold text-gray-900"></span> request? This can't be undone.</p>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn-secondary" data-close-modal>Keep Request</button>
+              <button type="button" id="cancel-request-confirm" class="btn-danger">Cancel Request</button>
             </div>
           </div>
         </div>

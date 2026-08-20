@@ -230,7 +230,7 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
               </div>
             </div>
-            <p class="stat-value">3</p>
+            <p class="stat-value" id="stat-special-week">3</p>
             <p class="stat-sub">feast days &amp; novenas</p>
           </div>
 
@@ -354,6 +354,48 @@
       <div class="modal-footer">
         <button type="button" class="btn-secondary" data-close-modal>Cancel</button>
         <button type="button" id="schedule-submit" class="btn-lavender">Save Mass</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== EDIT WEEKLY SCHEDULE MODAL ========== -->
+  <div id="edit-weekly-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit Weekly Schedule</h3>
+        <button class="modal-close" data-close-modal aria-label="Close">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2">
+            <label class="form-label">Day</label>
+            <input type="text" id="edit-weekly-day" class="form-input" disabled />
+          </div>
+          <div class="col-span-2">
+            <label class="form-label" for="edit-weekly-type">Mass Type</label>
+            <select id="edit-weekly-type" class="form-input">
+              <option value="">Select type</option>
+              <option value="Daily Mass">Daily Mass</option>
+              <option value="Sunday Mass">Sunday Mass</option>
+              <option value="Anticipated Mass">Anticipated Mass</option>
+              <option value="Special Mass">Special Mass</option>
+            </select>
+          </div>
+          <div class="col-span-2">
+            <label class="form-label">Times</label>
+            <div id="edit-weekly-times-list" class="weekly-times-list">
+              <!-- Time rows injected by masses.js -->
+            </div>
+            <button type="button" id="edit-weekly-add-time" class="weekly-add-time-btn">+ Add Time</button>
+            <p id="edit-weekly-times-error" class="form-error-msg hidden">At least one time is required.</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" data-close-modal>Cancel</button>
+        <button type="button" id="edit-weekly-submit" class="btn-lavender">Save Changes</button>
       </div>
     </div>
   </div>

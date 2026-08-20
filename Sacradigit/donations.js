@@ -9,20 +9,28 @@ document.addEventListener('DOMContentLoaded', () => {
      "Today" fixed to match the rest of the app.
   ------------------------------------------ */
   const TODAY_ISO = '2026-06-19';
+  const TODAY = new Date(TODAY_ISO + 'T00:00:00');
+
+  // "This week" = last 7 days up to and including today
+  const WEEK_START = new Date(TODAY);
+  WEEK_START.setDate(WEEK_START.getDate() - 6);
+
+  // "This month" = same calendar month as TODAY_ISO
+  const MONTH_PREFIX = TODAY_ISO.slice(0, 7); // "2026-06"
 
   const donations = [
-    { donor: 'Santos Family',      amount: 5000,  method: 'Online',  fund: 'Sunday Collection',       date: '2026-06-18' },
-    { donor: 'Cruz, Jose R.',       amount: 1000,  method: 'Cash',     fund: 'Mass Intention Offering', date: '2026-06-18' },
-    { donor: 'Reyes Family',        amount: 2500,  method: 'Online',  fund: 'Building Fund',            date: '2026-06-17' },
-    { donor: 'Garcia, Pedro M.',    amount: 500,   method: 'Cash',     fund: 'Poor Box',                  date: '2026-06-17' },
-    { donor: 'Anonymous',           amount: 10000, method: 'Check',   fund: 'Building Fund',            date: '2026-06-16' },
-    { donor: 'Villanueva Family',   amount: 1500,  method: 'Online',  fund: 'Sunday Collection',         date: '2026-06-15' },
-    { donor: 'Bautista, Carlo M.',  amount: 800,   method: 'Cash',     fund: 'Mass Intention Offering',  date: '2026-06-14' },
-    { donor: 'Mendoza, Carmen P.',  amount: 3000,  method: 'Online',  fund: 'Youth Ministry',            date: '2026-06-10' },
-    { donor: 'Fernandez, Luis G.',  amount: 1200,  method: 'Cash',     fund: 'Sunday Collection',         date: '2026-06-08' },
-    { donor: 'Torres Family',        amount: 2000,  method: 'Check',   fund: 'Building Fund',            date: '2026-06-03' },
-    { donor: 'Aquino Bakeshop',      amount: 5000,  method: 'Online',  fund: 'Building Fund',            date: '2026-06-02' },
-    { donor: 'Ramos, Teresa A.',     amount: 700,   method: 'Cash',     fund: 'Poor Box',                  date: '2026-05-29' },
+    { donor: 'Santos Family',      amount: 5000,  method: 'Online',  fund: 'Sunday Collection',       date: '2026-06-18', receiptNo: 'OR-2026-0512' },
+    { donor: 'Cruz, Jose R.',       amount: 1000,  method: 'Cash',     fund: 'Mass Intention Offering', date: '2026-06-18', receiptNo: 'OR-2026-0511' },
+    { donor: 'Reyes Family',        amount: 2500,  method: 'Online',  fund: 'Building Fund',            date: '2026-06-17', receiptNo: 'OR-2026-0510' },
+    { donor: 'Garcia, Pedro M.',    amount: 500,   method: 'Cash',     fund: 'Poor Box',                  date: '2026-06-17', receiptNo: 'OR-2026-0509' },
+    { donor: 'Anonymous',           amount: 10000, method: 'Check',   fund: 'Building Fund',            date: '2026-06-16', receiptNo: 'OR-2026-0508' },
+    { donor: 'Villanueva Family',   amount: 1500,  method: 'Online',  fund: 'Sunday Collection',         date: '2026-06-15', receiptNo: 'OR-2026-0507' },
+    { donor: 'Bautista, Carlo M.',  amount: 800,   method: 'Cash',     fund: 'Mass Intention Offering',  date: '2026-06-14', receiptNo: 'OR-2026-0506' },
+    { donor: 'Mendoza, Carmen P.',  amount: 3000,  method: 'Online',  fund: 'Youth Ministry',            date: '2026-06-10', receiptNo: 'OR-2026-0505' },
+    { donor: 'Fernandez, Luis G.',  amount: 1200,  method: 'Cash',     fund: 'Sunday Collection',         date: '2026-06-08', receiptNo: 'OR-2026-0504' },
+    { donor: 'Torres Family',        amount: 2000,  method: 'Check',   fund: 'Building Fund',            date: '2026-06-03', receiptNo: 'OR-2026-0503' },
+    { donor: 'Aquino Bakeshop',      amount: 5000,  method: 'Online',  fund: 'Building Fund',            date: '2026-06-02', receiptNo: 'OR-2026-0502' },
+    { donor: 'Ramos, Teresa A.',     amount: 700,   method: 'Cash',     fund: 'Poor Box',                  date: '2026-05-29', receiptNo: 'OR-2026-0501' },
   ];
 
   const tbody          = document.getElementById('donations-tbody');
@@ -34,8 +42,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const methodFilter  = document.getElementById('method-filter');
   const fundFilter      = document.getElementById('fund-filter');
 
+  const statCardWeek  = document.getElementById('stat-week').closest('.stat-card');
+  const statCardMonth = document.getElementById('stat-month').closest('.stat-card');
+
+  const viewModal      = document.getElementById('view-modal');
+  const viewDonor        = document.getElementById('view-donor');
+  const viewAmount         = document.getElementById('view-amount');
+  const viewDetailGrid       = document.getElementById('view-detail-grid');
+
   const PAGE_SIZE = 6;
   let currentPage = 1;
+  let activeDateRange = ''; // '', 'week', 'month' — driven by the clickable stat cards
 
   function escapeHtml(str) {
     const div = document.createElement('div');
@@ -60,6 +77,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }[method] || '';
   }
 
+  function isInWeek(dateIso) {
+    const dt = new Date(dateIso + 'T00:00:00');
+    return dt >= WEEK_START && dt <= TODAY;
+  }
+
+  function isInMonth(dateIso) {
+    return dateIso.startsWith(MONTH_PREFIX);
+  }
+
   function matchesFilters(d) {
     const query      = searchInput.value.trim().toLowerCase();
     const methodVal   = methodFilter.value;
@@ -71,8 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const matchesMethod = !methodVal || d.method === methodVal;
     const matchesFund     = !fundVal || d.fund === fundVal;
+    const matchesRange     = !activeDateRange ||
+      (activeDateRange === 'week' ? isInWeek(d.date) : isInMonth(d.date));
 
-    return matchesQuery && matchesMethod && matchesFund;
+    return matchesQuery && matchesMethod && matchesFund && matchesRange;
   }
 
 
@@ -80,20 +108,8 @@ document.addEventListener('DOMContentLoaded', () => {
      1. STAT BOXES
   ------------------------------------------ */
   function renderStats() {
-    const today = new Date(TODAY_ISO + 'T00:00:00');
-
-    // This week = last 7 days up to and including today
-    const weekStart = new Date(today);
-    weekStart.setDate(weekStart.getDate() - 6);
-
-    const thisWeekDonations = donations.filter(d => {
-      const dt = new Date(d.date + 'T00:00:00');
-      return dt >= weekStart && dt <= today;
-    });
-
-    // This month = same calendar month as TODAY_ISO
-    const monthPrefix = TODAY_ISO.slice(0, 7); // "2026-06"
-    const thisMonthDonations = donations.filter(d => d.date.startsWith(monthPrefix));
+    const thisWeekDonations  = donations.filter(d => isInWeek(d.date));
+    const thisMonthDonations = donations.filter(d => isInMonth(d.date));
 
     const weekTotal  = thisWeekDonations.reduce((sum, d) => sum + d.amount, 0);
     const monthTotal = thisMonthDonations.reduce((sum, d) => sum + d.amount, 0);
@@ -107,6 +123,49 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('stat-week').textContent   = formatPeso(weekTotal);
     document.getElementById('stat-month').textContent  = formatPeso(monthTotal);
     document.getElementById('stat-donors').textContent  = uniqueDonors.size;
+
+    updateActiveStatCard();
+  }
+
+  /* ------------------------------------------
+     1b. STAT CARDS AS QUICK FILTERS
+     "Total This Week" and "Total This Month" each
+     toggle a date-range filter on the table.
+     "Number of Donors" doesn't map to a single-column
+     table filter, so it's left informational only.
+  ------------------------------------------ */
+  const statCardsByRange = [
+    { card: statCardWeek,  range: 'week' },
+    { card: statCardMonth, range: 'month' },
+  ];
+
+  statCardsByRange.forEach(({ card, range }) => {
+    card.classList.add('stat-card-clickable');
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('#btn-view-graph')) return;
+      activeDateRange = activeDateRange === range ? '' : range;
+      currentPage = 1;
+      renderTable();
+      updateActiveStatCard();
+    });
+    card.addEventListener('keydown', (e) => {
+      if (e.target.closest('#btn-view-graph')) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        activeDateRange = activeDateRange === range ? '' : range;
+        currentPage = 1;
+        renderTable();
+        updateActiveStatCard();
+      }
+    });
+  });
+
+  function updateActiveStatCard() {
+    statCardsByRange.forEach(({ card, range }) => {
+      card.classList.toggle('stat-card-active', activeDateRange === range);
+    });
   }
 
 
@@ -133,15 +192,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const startIdx = (currentPage - 1) * PAGE_SIZE;
     const pageItems = filtered.slice(startIdx, startIdx + PAGE_SIZE);
 
-    tbody.innerHTML = pageItems.map(d => `
+    tbody.innerHTML = pageItems.map(d => {
+      const realIdx = donations.indexOf(d);
+      return `
       <tr>
         <td class="font-medium text-gray-900">${escapeHtml(d.donor)}</td>
         <td class="donation-amount">${formatPeso(d.amount)}</td>
         <td><span class="payment-tag ${methodClass(d.method)}">${escapeHtml(d.method)}</span></td>
         <td class="text-gray-500">${escapeHtml(d.fund)}</td>
         <td class="text-gray-400">${formatShortDate(d.date)}</td>
+        <td class="text-right">
+          <div class="row-actions">
+            <button type="button" class="row-view" data-index="${realIdx}">View ›</button>
+          </div>
+        </td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     renderPagination(filtered.length, totalPages, startIdx, pageItems.length);
   }
@@ -196,8 +263,15 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.value = '';
     methodFilter.value = '';
     fundFilter.value = '';
+    activeDateRange = '';
     currentPage = 1;
     renderTable();
+    updateActiveStatCard();
+  });
+
+  tbody.addEventListener('click', (e) => {
+    const viewBtn = e.target.closest('.row-view');
+    if (viewBtn) openViewModal(parseInt(viewBtn.dataset.index, 10));
   });
 
   renderStats();
@@ -305,10 +379,44 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
-  document.getElementById('btn-view-graph').addEventListener('click', () => {
+  document.getElementById('btn-view-graph').addEventListener('click', (e) => {
+    e.stopPropagation();
     renderDonationChart();
     openModal(graphModal);
   });
+
+
+  /* ------------------------------------------
+     4b. VIEW DETAILS MODAL (per-row)
+  ------------------------------------------ */
+  function openViewModal(idx) {
+    const d = donations[idx];
+    if (!d) return;
+
+    viewDonor.textContent = d.donor;
+    viewAmount.textContent = formatPeso(d.amount);
+
+    viewDetailGrid.innerHTML = `
+      <div>
+        <p class="so-detail-label">Payment Method</p>
+        <p class="so-detail-value"><span class="payment-tag ${methodClass(d.method)}">${escapeHtml(d.method)}</span></p>
+      </div>
+      <div>
+        <p class="so-detail-label">Fund / Purpose</p>
+        <p class="so-detail-value">${escapeHtml(d.fund)}</p>
+      </div>
+      <div>
+        <p class="so-detail-label">Date</p>
+        <p class="so-detail-value">${formatShortDate(d.date)}</p>
+      </div>
+      <div>
+        <p class="so-detail-label">Official Receipt No.</p>
+        <p class="so-detail-value">${escapeHtml(d.receiptNo || '—')}</p>
+      </div>
+    `;
+
+    openModal(viewModal);
+  }
 
 
   /* ------------------------------------------

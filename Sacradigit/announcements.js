@@ -137,9 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (unpublishBtn) {
       const idx = parseInt(unpublishBtn.dataset.index, 10);
-      announcements[idx].published = false;
-      renderGrid();
-      showToast(`"${announcements[idx].title}" unpublished.`);
+      openUnpublishModal(idx);
     }
 
     if (republishBtn) {
@@ -301,18 +299,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   /* ------------------------------------------
+     2b. UNPUBLISH CONFIRMATION MODAL
+     Unpublishing used to happen instantly on
+     click — now it routes through a confirmation
+     step first, since it takes a live
+     announcement down from the parish portal.
+  ------------------------------------------ */
+  const unpublishModal      = document.getElementById('unpublish-modal');
+  const unpublishTargetName = document.getElementById('unpublish-target-name');
+  let unpublishTargetIndex = null;
+
+  function openUnpublishModal(idx) {
+    unpublishTargetIndex = idx;
+    unpublishTargetName.textContent = announcements[idx].title;
+    openModal(unpublishModal);
+  }
+
+  document.getElementById('unpublish-confirm-submit').addEventListener('click', () => {
+    if (unpublishTargetIndex === null) return;
+    const title = announcements[unpublishTargetIndex].title;
+    announcements[unpublishTargetIndex].published = false;
+    renderGrid();
+    closeModal(unpublishModal);
+    showToast(`"${title}" unpublished.`);
+    unpublishTargetIndex = null;
+  });
+
+
+  /* ------------------------------------------
      3. MODAL HELPERS (open/close/escape)
   ------------------------------------------ */
   document.querySelectorAll('[data-close-modal]').forEach(btn => {
-    btn.addEventListener('click', () => closeModal(modal));
+    btn.addEventListener('click', () => {
+      closeModal(modal);
+      closeModal(unpublishModal);
+    });
   });
 
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) closeModal(modal);
+  [modal, unpublishModal].forEach(m => {
+    m.addEventListener('click', (e) => {
+      if (e.target === m) closeModal(m);
+    });
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeModal(modal);
+    if (e.key === 'Escape') {
+      closeModal(modal);
+      closeModal(unpublishModal);
+    }
   });
 
   function openModal(m) {

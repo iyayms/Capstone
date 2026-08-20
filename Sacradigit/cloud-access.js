@@ -86,6 +86,61 @@ document.addEventListener('DOMContentLoaded', () => {
     'Edit': 'action-edit',
   };
 
+  const STORAGE_USED_GB  = 6.8;
+  const STORAGE_TOTAL_GB = 10;
+
+  let accessGrants = [
+    { user: 'Admin User',    email: 'admin@holycrossparish.org',      role: 'System Admin',  grantedDate: '2025-01-10', lastActive: '10 min ago', status: 'Active' },
+    { user: 'Fr. Mark D.',   email: 'frmark@holycrossparish.org',     role: 'Parish Priest', grantedDate: '2025-03-02', lastActive: '38 min ago', status: 'Active' },
+    { user: 'Sis. Elena R.', email: 'elena.r@holycrossparish.org',    role: 'Records Staff', grantedDate: '2025-06-18', lastActive: '2 hrs ago',  status: 'Active' },
+    { user: 'Grace T.',      email: 'grace.t@volunteers.holycross.org', role: 'Volunteer',   grantedDate: '2026-02-11', lastActive: '1 day ago',  status: 'Active' },
+    { user: 'Mico A.',       email: 'mico.a@volunteers.holycross.org',  role: 'Volunteer',   grantedDate: '2026-02-11', lastActive: '3 days ago', status: 'Active' },
+    { user: 'Liza P.',       email: 'liza.p@volunteers.holycross.org',  role: 'Volunteer',   grantedDate: '2025-11-05', lastActive: '3 weeks ago', status: 'Revoked' },
+  ];
+
+  // Permissions per role, keyed off the same labels used in the
+  // Access Roles & Permissions table below.
+  const rolePermissions = {};
+  roles.forEach(r => { rolePermissions[r.role] = r.permissions; });
+
+  const grantStatusBadgeClass = {
+    Active:  'badge-green',
+    Revoked: 'badge-gray',
+  };
+
+  /* ------------------------------------------
+     DOM REFERENCES
+     Resolved up front, before any function that
+     might use them can possibly run — avoids
+     "used before initialization" errors when the
+     render functions fire on first paint.
+  ------------------------------------------ */
+  const statTotalFiles   = document.getElementById('stat-total-files');
+  const statStorageUsed  = document.getElementById('stat-storage-used');
+  const statStorageSub   = document.getElementById('stat-storage-sub');
+  const statTotalGrants  = document.getElementById('stat-total-grants');
+  const statActiveGrants = document.getElementById('stat-active-grants');
+
+  const grantsTbody = document.getElementById('grants-tbody');
+  const grantsCount = document.getElementById('grants-count');
+
+  const grantViewModal         = document.getElementById('grant-view-modal');
+  const grantViewName          = document.getElementById('grant-view-name');
+  const grantViewStatusBadge   = document.getElementById('grant-view-status-badge');
+  const grantViewDetailGrid    = document.getElementById('grant-view-detail-grid');
+  const grantViewPermissions   = document.getElementById('grant-view-permissions');
+
+  const grantRevokeModal = document.getElementById('grant-revoke-modal');
+  const grantRevokeName  = document.getElementById('grant-revoke-name');
+
+  const uploadModal        = document.getElementById('upload-modal');
+  const dropzone            = document.getElementById('upload-dropzone');
+  const fileInput            = document.getElementById('upload-file-input');
+  const uploadFilename        = document.getElementById('upload-filename');
+  const uploadFolderSelect     = document.getElementById('upload-folder');
+
+  const toast = document.getElementById('toast');
+
   /* ------------------------------------------
      1. RENDER — Service health grid
   ------------------------------------------ */
@@ -173,20 +228,192 @@ document.addEventListener('DOMContentLoaded', () => {
     return div.innerHTML;
   }
 
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+    });
+  }
+
+
+  /* ------------------------------------------
+     4b. STAT BOXES
+  ------------------------------------------ */
+  function renderStats() {
+    const totalFiles = folders.reduce((sum, f) => sum + f.files, 0);
+
+    statTotalFiles.textContent  = totalFiles;
+    statStorageUsed.textContent = `${STORAGE_USED_GB} GB`;
+    statStorageSub.textContent  = `${Math.round((STORAGE_USED_GB / STORAGE_TOTAL_GB) * 100)}% of ${STORAGE_TOTAL_GB} GB used`;
+    statTotalGrants.textContent  = accessGrants.length;
+    statActiveGrants.textContent = accessGrants.filter(g => g.status === 'Active').length;
+
+    updateActiveStatCard();
+  }
+
+  /* ------------------------------------------
+     4c. STAT CARDS AS QUICK FILTERS
+     "Access Grants" clears the status filter;
+     "Active Grants" jumps straight to active
+     users only. Total Files / Storage Used
+     aren't filterable dimensions, so they stay
+     informational only.
+  ------------------------------------------ */
+  const statCardTotalGrants  = statTotalGrants.closest('.stat-card');
+  const statCardActiveGrants = statActiveGrants.closest('.stat-card');
+
+  let grantStatusFilter = '';
+
+  const statCardsByGrantStatus = [
+    { card: statCardTotalGrants,  status: '' },
+    { card: statCardActiveGrants, status: 'Active' },
+  ];
+
+  statCardsByGrantStatus.forEach(({ card, status }) => {
+    card.classList.add('stat-card-clickable');
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.addEventListener('click', () => {
+      grantStatusFilter = status;
+      renderGrants();
+    });
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        grantStatusFilter = status;
+        renderGrants();
+      }
+    });
+  });
+
+  function updateActiveStatCard() {
+    statCardsByGrantStatus.forEach(({ card, status }) => {
+      card.classList.toggle('stat-card-active', grantStatusFilter === status);
+    });
+  }
+
+
+  /* ------------------------------------------
+     4d. RENDER — User access grants table
+  ------------------------------------------ */
+  function renderGrants() {
+    updateActiveStatCard();
+
+    const filtered = grantStatusFilter
+      ? accessGrants.filter(g => g.status === grantStatusFilter)
+      : accessGrants;
+
+    grantsCount.textContent = `${filtered.length} of ${accessGrants.length} grant${accessGrants.length === 1 ? '' : 's'}`;
+
+    grantsTbody.innerHTML = filtered.map(g => {
+      const realIdx = accessGrants.indexOf(g);
+      const actionsHtml = g.status === 'Active'
+        ? `<div class="row-actions">
+             <button type="button" class="row-view" data-index="${realIdx}">View ›</button>
+             <button type="button" class="row-revoke" data-index="${realIdx}">Revoke</button>
+           </div>`
+        : `<div class="row-actions">
+             <button type="button" class="row-view" data-index="${realIdx}">View ›</button>
+           </div>`;
+
+      return `
+        <tr>
+          <td class="font-medium text-gray-900">${escapeHtml(g.user)}</td>
+          <td class="text-gray-500">${escapeHtml(g.role)}</td>
+          <td class="text-gray-400">${fmtDate(g.grantedDate)}</td>
+          <td class="text-gray-400">${escapeHtml(g.lastActive)}</td>
+          <td><span class="badge ${grantStatusBadgeClass[g.status] || 'badge-gray'}">${escapeHtml(g.status)}</span></td>
+          <td class="text-right">${actionsHtml}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  grantsTbody.addEventListener('click', (e) => {
+    const viewBtn   = e.target.closest('.row-view');
+    const revokeBtn  = e.target.closest('.row-revoke');
+
+    if (viewBtn)   openViewGrantModal(parseInt(viewBtn.dataset.index, 10));
+    if (revokeBtn) openRevokeModal(parseInt(revokeBtn.dataset.index, 10));
+  });
+
+
   renderHealth();
   renderFolders();
   renderAccessLog();
   renderRoles();
+  renderStats();
+  renderGrants();
+
+
+  /* ------------------------------------------
+     4e. VIEW GRANT DETAILS MODAL
+  ------------------------------------------ */
+  function openViewGrantModal(idx) {
+    const g = accessGrants[idx];
+
+    grantViewName.textContent = g.user;
+    grantViewStatusBadge.textContent = g.status;
+    grantViewStatusBadge.className = `badge ${grantStatusBadgeClass[g.status] || 'badge-gray'}`;
+
+    grantViewDetailGrid.innerHTML = `
+      <div>
+        <p class="so-detail-label">Role</p>
+        <p class="so-detail-value">${escapeHtml(g.role)}</p>
+      </div>
+      <div>
+        <p class="so-detail-label">Email</p>
+        <p class="so-detail-value">${escapeHtml(g.email)}</p>
+      </div>
+      <div>
+        <p class="so-detail-label">Granted</p>
+        <p class="so-detail-value">${fmtDate(g.grantedDate)}</p>
+      </div>
+      <div>
+        <p class="so-detail-label">Last Active</p>
+        <p class="so-detail-value">${escapeHtml(g.lastActive)}</p>
+      </div>
+    `;
+
+    const permissions = rolePermissions[g.role] || [];
+    grantViewPermissions.innerHTML = permissions
+      .map(p => `<span class="permission-tag ${p.granted ? 'granted' : ''}">${p.granted ? '✓' : '–'} ${escapeHtml(p.label)}</span>`)
+      .join('') || '<span class="text-xs text-gray-400">No permissions on record.</span>';
+
+    openModal(grantViewModal);
+  }
+
+
+  /* ------------------------------------------
+     4f. REVOKE ACCESS CONFIRMATION MODAL
+     Revoking access used to have no confirmation
+     step at all (there was no revoke action) —
+     now it routes through this modal first.
+  ------------------------------------------ */
+  let revokeTargetIndex = null;
+
+  function openRevokeModal(idx) {
+    revokeTargetIndex = idx;
+    grantRevokeName.textContent = accessGrants[idx].user;
+    openModal(grantRevokeModal);
+  }
+
+  document.getElementById('grant-revoke-confirm-submit').addEventListener('click', () => {
+    if (revokeTargetIndex === null) return;
+    const g = accessGrants[revokeTargetIndex];
+    g.status = 'Revoked';
+
+    renderStats();
+    renderGrants();
+    closeModal(grantRevokeModal);
+    showToast(`Access revoked for ${g.user}.`);
+    revokeTargetIndex = null;
+  });
 
 
   /* ------------------------------------------
      5. UPLOAD MODAL
   ------------------------------------------ */
-  const uploadModal     = document.getElementById('upload-modal');
-  const dropzone        = document.getElementById('upload-dropzone');
-  const fileInput        = document.getElementById('upload-file-input');
-  const uploadFilename    = document.getElementById('upload-filename');
-  const uploadFolderSelect = document.getElementById('upload-folder');
 
   // Populate destination folder dropdown from the folders dataset
   uploadFolderSelect.innerHTML = folders
@@ -195,16 +422,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btn-upload').addEventListener('click', () => openModal(uploadModal));
 
+  const allModals = [uploadModal, grantViewModal, grantRevokeModal];
+
   document.querySelectorAll('[data-close-modal]').forEach(btn => {
-    btn.addEventListener('click', () => closeModal(uploadModal));
+    btn.addEventListener('click', () => allModals.forEach(closeModal));
   });
 
-  uploadModal.addEventListener('click', (e) => {
-    if (e.target === uploadModal) closeModal(uploadModal);
+  allModals.forEach(m => {
+    m.addEventListener('click', (e) => {
+      if (e.target === m) closeModal(m);
+    });
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeModal(uploadModal);
+    if (e.key === 'Escape') allModals.forEach(closeModal);
   });
 
   function openModal(modal) {
@@ -271,7 +502,6 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ------------------------------------------
      6. TOAST NOTIFICATIONS
   ------------------------------------------ */
-  const toast = document.getElementById('toast');
   let toastTimer = null;
 
   function showToast(message, isError = false) {

@@ -392,3 +392,29 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Detail grid in View Details modal ---------- */
+.da-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem 1rem;
+  background-color: #f7f8fa;
+  border-radius: 0.625rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.da-detail-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  margin-bottom: 0.1rem;
+}
+
+.da-detail-value {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #111827;
+}

@@ -55,6 +55,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const specialMassesList      = document.getElementById('special-masses-list');
   const weeklyTbody            = document.getElementById('weekly-tbody');
 
+  const editWeeklyModal        = document.getElementById('edit-weekly-modal');
+  const editWeeklyDay          = document.getElementById('edit-weekly-day');
+  const editWeeklyType         = document.getElementById('edit-weekly-type');
+  const editWeeklyTimesList    = document.getElementById('edit-weekly-times-list');
+  const editWeeklyAddTimeBtn   = document.getElementById('edit-weekly-add-time');
+  const editWeeklyTimesError   = document.getElementById('edit-weekly-times-error');
+  const editWeeklySubmitBtn    = document.getElementById('edit-weekly-submit');
+
+  const statCardSpecialWeek    = document.getElementById('stat-special-week').closest('.stat-card');
+
   datePicker.value = TODAY_ISO;
 
   let currentDateMasses = []; // sorted masses for the currently selected date, indexed for the details modal
@@ -174,14 +184,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = e.target.closest('.row-action');
     if (btn) {
       const idx = parseInt(btn.dataset.dayIndex, 10);
-      showToast(`Editing ${weeklySchedule[idx].day}'s schedule… (not yet wired to a form)`);
-      // TODO: open an edit modal for the weekly schedule once that flow is designed.
+      openEditWeeklyModal(idx);
     }
   });
 
   renderDateSchedule();
   renderSpecialMasses();
   renderWeeklySchedule();
+
+
+  /* ------------------------------------------
+     3b. STAT CARD AS QUICK FILTER
+     Only "Special This Week" has a sensible
+     in-page/related target — it jumps to the
+     Special Schedules page (same destination
+     as the "View all →" link above).
+  ------------------------------------------ */
+  statCardSpecialWeek.classList.add('stat-card-clickable');
+  statCardSpecialWeek.setAttribute('role', 'link');
+  statCardSpecialWeek.setAttribute('tabindex', '0');
+  statCardSpecialWeek.setAttribute('aria-label', 'View special masses on the Special Schedules page');
+
+  function goToSpecialSchedules() {
+    window.location.href = 'special-schedules.html';
+  }
+
+  statCardSpecialWeek.addEventListener('click', goToSpecialSchedules);
+  statCardSpecialWeek.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      goToSpecialSchedules();
+    }
+  });
 
 
   /* ------------------------------------------
@@ -313,6 +347,123 @@ document.addEventListener('DOMContentLoaded', () => {
 
     openModal(massDetailsModal);
   }
+
+
+  /* ------------------------------------------
+     5.6 EDIT WEEKLY SCHEDULE MODAL
+     (Regular Weekly Mass Schedule table)
+  ------------------------------------------ */
+  let editingDayIndex = null;
+
+  function to24hInputValue(timeStr) {
+    const [time, meridiem] = timeStr.split(' ');
+    let [h, m] = time.split(':').map(Number);
+    if (meridiem === 'PM' && h !== 12) h += 12;
+    if (meridiem === 'AM' && h === 12) h = 0;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  function buildTimeRow(value) {
+    const row = document.createElement('div');
+    row.className = 'weekly-time-row';
+    row.innerHTML = `
+      <input type="time" class="form-input weekly-time-input" value="${value ? escapeHtml(value) : ''}" />
+      <button type="button" class="weekly-remove-time-btn" aria-label="Remove time">&times;</button>
+    `;
+    return row;
+  }
+
+  function renderEditWeeklyTimes(times) {
+    editWeeklyTimesList.innerHTML = '';
+    times.forEach(t => editWeeklyTimesList.appendChild(buildTimeRow(to24hInputValue(t))));
+  }
+
+  editWeeklyAddTimeBtn.addEventListener('click', () => {
+    editWeeklyTimesList.appendChild(buildTimeRow(''));
+  });
+
+  editWeeklyTimesList.addEventListener('click', (e) => {
+    const btn = e.target.closest('.weekly-remove-time-btn');
+    if (!btn) return;
+    btn.closest('.weekly-time-row').remove();
+  });
+
+  function setFieldError(input, message) {
+    input.classList.add('has-error');
+    let msg = input.parentElement.querySelector('.form-error-msg');
+    if (!msg) {
+      msg = document.createElement('p');
+      msg.className = 'form-error-msg';
+      input.insertAdjacentElement('afterend', msg);
+    }
+    msg.textContent = message;
+  }
+
+  function clearFieldError(input) {
+    input.classList.remove('has-error');
+    const msg = input.parentElement.querySelector('.form-error-msg');
+    if (msg) msg.remove();
+  }
+
+  function openEditWeeklyModal(idx) {
+    const w = weeklySchedule[idx];
+    if (!w) return;
+
+    editingDayIndex = idx;
+    editWeeklyDay.value = w.day;
+    editWeeklyType.value = w.type;
+    clearFieldError(editWeeklyType);
+    editWeeklyTimesError.classList.add('hidden');
+    renderEditWeeklyTimes(w.times);
+
+    openModal(editWeeklyModal);
+  }
+
+  editWeeklySubmitBtn.addEventListener('click', () => {
+    if (editingDayIndex === null) return;
+
+    let hasError = false;
+
+    clearFieldError(editWeeklyType);
+    const type = editWeeklyType.value;
+    if (!type) {
+      setFieldError(editWeeklyType, 'Mass type is required.');
+      hasError = true;
+    }
+
+    const timeInputs = Array.from(editWeeklyTimesList.querySelectorAll('.weekly-time-input'));
+    timeInputs.forEach(clearFieldError);
+    editWeeklyTimesError.classList.add('hidden');
+
+    const times = [];
+    let hasEmptyTime = false;
+    timeInputs.forEach(input => {
+      if (!input.value) {
+        setFieldError(input, 'Required.');
+        hasEmptyTime = true;
+        return;
+      }
+      times.push(formatTime12(input.value));
+    });
+
+    if (hasEmptyTime) hasError = true;
+
+    if (!hasEmptyTime && times.length === 0) {
+      editWeeklyTimesError.classList.remove('hidden');
+      hasError = true;
+    }
+
+    if (hasError) return;
+
+    weeklySchedule[editingDayIndex].type = type;
+    weeklySchedule[editingDayIndex].times = times;
+
+    renderWeeklySchedule();
+    closeModal(editWeeklyModal);
+    showToast(`${weeklySchedule[editingDayIndex].day}'s schedule updated.`);
+
+    editingDayIndex = null;
+  });
 
 
   /* ------------------------------------------

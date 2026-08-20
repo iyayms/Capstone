@@ -31,11 +31,64 @@ document.addEventListener('DOMContentLoaded', () => {
   const dateFilter      = document.getElementById('date-filter');
   const clearFiltersBtn = document.getElementById('btn-clear-filters');
 
+  // View Details modal refs (declared up top per file convention, even
+  // though openViewModal itself only runs from a later click, not during
+  // the initial synchronous render)
+  const viewModal       = document.getElementById('view-modal');
+  const viewName         = document.getElementById('view-name');
+  const viewStatusBadge   = document.getElementById('view-status-badge');
+  const viewDetailGrid     = document.getElementById('view-detail-grid');
+
   const badgeClass = {
     'Digitized':  'badge-green',
     'Processing': 'badge-amber',
     'Queued':     'badge-gray',
   };
+
+  /* ------------------------------------------
+     0b. STAT CARDS AS QUICK FILTERS
+     Total clears the status filter; Digitized /
+     Pending set an in-memory status matcher and
+     jump straight to the matching rows. "Pending"
+     here means anything not yet Digitized
+     (Processing or Queued), matching its "awaiting
+     digitization" sub-label. Storage Used isn't a
+     status, so it stays informational only.
+  ------------------------------------------ */
+  const statCardTotal      = document.getElementById('stat-card-total');
+  const statCardDigitized  = document.getElementById('stat-card-digitized');
+  const statCardPending    = document.getElementById('stat-card-pending');
+
+  const statCardsByFilter = [
+    { card: statCardTotal,     matcher: null },
+    { card: statCardDigitized, matcher: r => r.status === 'Digitized' },
+    { card: statCardPending,   matcher: r => r.status !== 'Digitized' },
+  ];
+
+  let activeStatusMatcher = null;
+
+  statCardsByFilter.forEach(({ card, matcher }) => {
+    card.classList.add('stat-card-clickable');
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.addEventListener('click', () => {
+      activeStatusMatcher = matcher;
+      renderRecords();
+    });
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        activeStatusMatcher = matcher;
+        renderRecords();
+      }
+    });
+  });
+
+  function updateActiveStatCard() {
+    statCardsByFilter.forEach(({ card, matcher }) => {
+      card.classList.toggle('stat-card-active', activeStatusMatcher === matcher);
+    });
+  }
 
   /* ------------------------------------------
      1. RENDER TABLE based on current filters
@@ -44,6 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const query   = searchInput.value.trim().toLowerCase();
     const typeVal = typeFilter.value;
     const dateVal = dateFilter.value;
+
+    updateActiveStatCard();
 
     const now = new Date('2026-06-19'); // app "today" — matches dashboard
 
@@ -62,7 +117,9 @@ document.addEventListener('DOMContentLoaded', () => {
         matchesDate = diffDays <= days;
       }
 
-      return matchesQuery && matchesType && matchesDate;
+      const matchesStatus = !activeStatusMatcher || activeStatusMatcher(r);
+
+      return matchesQuery && matchesType && matchesDate && matchesStatus;
     });
 
     tbody.innerHTML = '';
@@ -72,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       emptyState.classList.add('hidden');
       filtered.forEach(r => {
+        const realIdx = records.indexOf(r);
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td class="font-medium text-gray-900">${escapeHtml(r.name)}</td>
@@ -79,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td>${formatDate(r.dateAdded)}</td>
           <td>${escapeHtml(r.addedBy)}</td>
           <td><span class="badge ${badgeClass[r.status] || 'badge-gray'}">${escapeHtml(r.status)}</span></td>
-          <td class="text-right"><button type="button" class="row-action" data-record="${escapeHtml(r.name)}">View ›</button></td>
+          <td class="text-right"><button type="button" class="row-action" data-index="${realIdx}">View ›</button></td>
         `;
         tbody.appendChild(tr);
       });
@@ -115,12 +173,40 @@ document.addEventListener('DOMContentLoaded', () => {
   tbody.addEventListener('click', (e) => {
     const btn = e.target.closest('.row-action');
     if (btn) {
-      showToast(`Opening record for ${btn.dataset.record}…`);
-      // TODO: route to a record detail view once it exists.
+      openViewModal(parseInt(btn.dataset.index, 10));
     }
   });
 
   renderRecords(); // initial paint
+
+
+  /* ------------------------------------------
+     1b. VIEW DETAILS MODAL
+  ------------------------------------------ */
+  function openViewModal(idx) {
+    const r = records[idx];
+
+    viewName.textContent = r.name;
+    viewStatusBadge.textContent = r.status;
+    viewStatusBadge.className = `badge ${badgeClass[r.status] || 'badge-gray'}`;
+
+    viewDetailGrid.innerHTML = `
+      <div>
+        <p class="da-detail-label">Record Type</p>
+        <p class="da-detail-value">${escapeHtml(r.type)}</p>
+      </div>
+      <div>
+        <p class="da-detail-label">Date Added</p>
+        <p class="da-detail-value">${formatDate(r.dateAdded)}</p>
+      </div>
+      <div>
+        <p class="da-detail-label">Added By</p>
+        <p class="da-detail-value">${escapeHtml(r.addedBy)}</p>
+      </div>
+    `;
+
+    openModal(viewModal);
+  }
 
 
   /* ------------------------------------------
@@ -136,11 +222,12 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => {
       closeModal(uploadModal);
       closeModal(newRecordModal);
+      closeModal(viewModal);
     });
   });
 
   // Click outside modal card to close
-  [uploadModal, newRecordModal].forEach(modal => {
+  [uploadModal, newRecordModal, viewModal].forEach(modal => {
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeModal(modal);
     });
@@ -151,6 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') {
       closeModal(uploadModal);
       closeModal(newRecordModal);
+      closeModal(viewModal);
     }
   });
 
@@ -277,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function showToast(message, isError = false) {
     clearTimeout(toastTimer);
-    toast.textContent = message;
+    toast.querySelector('.toast-message').textContent = message;
     toast.style.backgroundColor = isError ? '#b91c1c' : '#1e2a4a';
     toast.classList.remove('hidden');
     requestAnimationFrame(() => toast.classList.add('show'));

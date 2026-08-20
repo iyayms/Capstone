@@ -200,7 +200,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalNotesWrap                               = document.getElementById('modal-notes-wrap');
   const modalNotes                                      = document.getElementById('modal-notes');
 
+  const modalCancelBtn      = document.getElementById('modal-cancel-request');
+  const cancelRequestModal   = document.getElementById('cancel-request-modal');
+  const cancelRequestTypeEl    = document.getElementById('cancel-request-type');
+  const cancelRequestConfirm     = document.getElementById('cancel-request-confirm');
+
   let selectedTypeId = null;
+  let currentDetailIndex = null;
 
 
   /* ------------------------------------------
@@ -446,6 +452,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const r = myRequests[idx];
     const svc = serviceById(r.service);
 
+    currentDetailIndex = idx;
+    modalCancelBtn.classList.toggle('hidden', r.status !== 'Pending');
+
     document.getElementById('detail-modal-title').textContent = `${svc.name} Request`;
     modalStatusBadge.textContent = r.status;
     modalStatusBadge.className = `badge ${badgeClass[r.status] || 'badge-gray'}`;
@@ -499,10 +508,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => {
       closeModal(requestModal);
       closeModal(detailModal);
+      closeModal(cancelRequestModal);
     });
   });
 
-  [requestModal, detailModal].forEach(m => {
+  [requestModal, detailModal, cancelRequestModal].forEach(m => {
     m.addEventListener('click', (e) => { if (e.target === m) closeModal(m); });
   });
 
@@ -510,7 +520,36 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') {
       closeModal(requestModal);
       closeModal(detailModal);
+      closeModal(cancelRequestModal);
     }
+  });
+
+
+  /* ------------------------------------------
+     9b. CANCEL REQUEST (Pending requests only)
+  ------------------------------------------ */
+  modalCancelBtn.addEventListener('click', () => {
+    if (currentDetailIndex === null) return;
+    const r = myRequests[currentDetailIndex];
+    if (!r) return;
+    const svc = serviceById(r.service);
+    cancelRequestTypeEl.textContent = svc.name;
+    openModal(cancelRequestModal);
+  });
+
+  cancelRequestConfirm.addEventListener('click', () => {
+    if (currentDetailIndex === null) return;
+    const removed = myRequests[currentDetailIndex];
+    if (!removed) return;
+    const svc = serviceById(removed.service);
+    myRequests.splice(currentDetailIndex, 1);
+    currentDetailIndex = null;
+
+    renderStats();
+    renderList();
+    closeModal(detailModal);
+    closeModal(cancelRequestModal);
+    window.showToast(`${svc.name} request cancelled.`);
   });
 
 

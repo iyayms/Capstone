@@ -87,6 +87,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   /* ------------------------------------------
+     1b. STAT CARDS AS QUICK JUMPS
+     Blessings doesn't have a single filterable
+     table with a status dropdown like Schedule
+     Offers — it's three separate lists (Upcoming /
+     Requests / Completed). So instead of setting a
+     filter control's value, "Scheduled This Week"
+     and "Pending Requests" (both driven by live
+     data) jump-scroll to and briefly highlight
+     their matching panel. "Avg. Per Week" and
+     "Slots Open" are static placeholder figures
+     with no backing list to jump to, so they're
+     left as plain, non-clickable stat cards.
+  ------------------------------------------ */
+  const statCardScheduled = document.getElementById('stat-scheduled').closest('.stat-card');
+  const statCardPending   = document.getElementById('stat-pending').closest('.stat-card');
+
+  const statCardsBySection = [
+    { card: statCardScheduled, panel: upcomingList.closest('.panel') },
+    { card: statCardPending,   panel: requestsList.closest('.panel') },
+  ];
+
+  statCardsBySection.forEach(({ card, panel }) => {
+    if (!card || !panel) return;
+    card.classList.add('stat-card-clickable');
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.addEventListener('click', () => jumpToPanel(card, panel));
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        jumpToPanel(card, panel);
+      }
+    });
+  });
+
+  function jumpToPanel(card, panel) {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    card.classList.add('stat-card-active');
+    panel.classList.add('panel-highlight');
+    clearTimeout(card._flashTimer);
+    card._flashTimer = setTimeout(() => {
+      card.classList.remove('stat-card-active');
+      panel.classList.remove('panel-highlight');
+    }, 1200);
+  }
+
+
+  /* ------------------------------------------
      2. RENDER — Upcoming Blessings
   ------------------------------------------ */
   function renderUpcoming() {

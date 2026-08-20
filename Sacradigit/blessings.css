@@ -252,3 +252,13 @@
   font-weight: 600;
   color: #111827;
 }
+
+/* ---------- Stat-card "jump to panel" flash ----------
+   Applied briefly to a panel when its matching stat
+   card (Scheduled This Week / Pending Requests) is
+   clicked, so the target list is easy to spot after
+   the scroll. See blessings.js jumpToPanel(). */
+.panel-highlight {
+  box-shadow: 0 0 0 2px rgba(139, 143, 199, 0.35);
+  transition: box-shadow 0.2s ease;
+}

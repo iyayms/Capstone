@@ -88,6 +88,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const totalOfferings = thisWeek.reduce((sum, i) => sum + i.offering, 0);
     document.getElementById('stat-offerings').textContent = formatPeso(totalOfferings);
+
+    updateActiveStatCard();
+  }
+
+  /* ------------------------------------------
+     1b. STAT CARDS AS QUICK FILTERS
+     Only "Pending Mass Assignment" maps onto the
+     status filter (it's a direct count of
+     status === 'Pending'). "Total Intentions This
+     Week" and "Total Offerings" are date/currency
+     roll-ups with no matching filter control, so
+     they're left as plain, non-clickable stat cards.
+  ------------------------------------------ */
+  const statCardPending = document.getElementById('stat-pending').closest('.stat-card');
+
+  const statCardsByStatus = [
+    { card: statCardPending, status: 'Pending' },
+  ];
+
+  statCardsByStatus.forEach(({ card, status }) => {
+    card.classList.add('stat-card-clickable');
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.addEventListener('click', () => {
+      statusFilter.value = status;
+      renderTable();
+    });
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        statusFilter.value = status;
+        renderTable();
+      }
+    });
+  });
+
+  function updateActiveStatCard() {
+    statCardsByStatus.forEach(({ card, status }) => {
+      card.classList.toggle('stat-card-active', statusFilter.value === status);
+    });
   }
 
 
@@ -97,6 +137,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderTable() {
     const sorted = intentions.slice().sort((a, b) => new Date(b.submittedDate) - new Date(a.submittedDate));
     const filtered = sorted.filter(matchesFilters);
+
+    updateActiveStatCard();
 
     logCount.textContent = `${filtered.length} intention${filtered.length === 1 ? '' : 's'}`;
 

@@ -159,6 +159,67 @@
   color: #1e2a4a;
 }
 
+/* ---------- Edit Weekly Schedule modal ---------- */
+#edit-weekly-day[disabled] {
+  background-color: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.weekly-times-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.weekly-time-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.weekly-time-row .weekly-time-input {
+  flex: 1;
+}
+
+.weekly-remove-time-btn {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background-color: #ffffff;
+  color: #9ca3af;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.weekly-remove-time-btn:hover {
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+.weekly-add-time-btn {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #5b5fa8;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s ease;
+}
+
+.weekly-add-time-btn:hover {
+  color: #1e2a4a;
+}
+
 /* ---------- Detail grid (Mass Details modal) ---------- */
 .so-detail-grid {
   display: grid;

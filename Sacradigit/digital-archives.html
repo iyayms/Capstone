@@ -205,7 +205,7 @@
         <!-- Stat boxes -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
-          <div class="stat-card">
+          <div id="stat-card-total" class="stat-card">
             <div class="flex items-start justify-between mb-3">
               <p class="stat-label">Total Records</p>
               <div class="stat-icon">
@@ -216,7 +216,7 @@
             <p class="stat-sub">across all record types</p>
           </div>
 
-          <div class="stat-card">
+          <div id="stat-card-digitized" class="stat-card">
             <div class="flex items-start justify-between mb-3">
               <p class="stat-label">Digitized</p>
               <div class="stat-icon stat-icon-green">
@@ -227,7 +227,7 @@
             <p class="stat-sub">93% of total archive</p>
           </div>
 
-          <div class="stat-card">
+          <div id="stat-card-pending" class="stat-card">
             <div class="flex items-start justify-between mb-3">
               <p class="stat-label">Pending</p>
               <div class="stat-icon stat-icon-amber">
@@ -401,6 +401,28 @@
       <div class="modal-footer">
         <button type="button" class="btn-secondary" data-close-modal>Cancel</button>
         <button type="button" id="new-record-submit" class="btn-lavender">Save Record</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== VIEW RECORD DETAILS MODAL ========== -->
+  <div id="view-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Record Details</h3>
+        <button class="modal-close" data-close-modal aria-label="Close">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body space-y-3">
+        <div class="flex items-center justify-between">
+          <p class="text-sm font-semibold text-gray-900" id="view-name"></p>
+          <span id="view-status-badge" class="badge"></span>
+        </div>
+        <div class="da-detail-grid" id="view-detail-grid"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" data-close-modal>Close</button>
       </div>
     </div>
   </div>
